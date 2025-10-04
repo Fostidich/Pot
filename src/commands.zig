@@ -50,14 +50,28 @@ pub fn listPrograms() !void {
     // retrieve dir data
     var dir = try std.fs.cwd().openDir(files.scripts_dir, .{ .iterate = true });
     defer dir.close();
+
+    // build list with entries
+    var entries = try std.ArrayList(std.fs.Dir.Entry).initCapacity(allocator, 16);
+    defer entries.deinit(allocator);
     var it = dir.iterate();
+    while (try it.next()) |entry| {
+        try entries.append(allocator, entry);
+    }
+
+    // sort by filename
+    std.mem.sort(std.fs.Dir.Entry, entries.items, {}, struct {
+        fn lessThan(_: void, a: std.fs.Dir.Entry, b: std.fs.Dir.Entry) bool {
+            return std.mem.order(u8, a.name, b.name) == .lt;
+        }
+    }.lessThan);
 
     // match active ones
     var active_procs = try actives.getActivePrograms(allocator);
     defer active_procs.deinit();
 
     // print entries if normal file
-    while (try it.next()) |entry| {
+    for (entries.items) |entry| {
         if (entry.kind == .file and entry.name[0] != '.') {
             if (active_procs.get(entry.name)) |pid| {
                 print("active: {s} ({})\n", .{ entry.name, pid });
@@ -112,8 +126,11 @@ pub fn stopProgram(name: []const u8) !void {
     };
 
     // kill process session
-    try processes.killProcess(-pid);
-    print("{s} stopped\n", .{name});
+    if (try processes.killProcess(-pid)) {
+        print("{s} stopped\n", .{name});
+    } else {
+        print("{s} not running\n", .{name});
+    }
 
     // remove from the active files
     _ = active_procs.remove(name);

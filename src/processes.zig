@@ -1,5 +1,4 @@
 const std = @import("std");
-const print = std.debug.print;
 const posix = std.posix;
 const builtin = @import("builtin");
 
@@ -39,8 +38,14 @@ pub fn spawnDetached(allocator: std.mem.Allocator, path: []const u8) !i32 {
     return pid;
 }
 
-pub fn killProcess(sess_id: i32) !void {
-    try posix.kill(sess_id, 9);
+pub fn killProcess(sess_id: i32) !bool {
+    posix.kill(sess_id, 9) catch |err| switch (err) {
+        error.ProcessNotFound => {
+            return false;
+        },
+        else => return err,
+    };
+    return true;
 }
 
 pub fn openEditor(allocator: std.mem.Allocator, editor_name: []const u8, file_path: []const u8) !bool {
@@ -55,7 +60,7 @@ pub fn openEditor(allocator: std.mem.Allocator, editor_name: []const u8, file_pa
         else => return err,
     };
 
-    // print exit result
+    // return exit success
     return switch (result) {
         .Exited => |code| code == 0,
         else => false,

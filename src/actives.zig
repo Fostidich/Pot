@@ -1,5 +1,4 @@
 const std = @import("std");
-const print = std.debug.print;
 
 const files = @import("files.zig");
 
